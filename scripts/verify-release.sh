@@ -35,7 +35,7 @@ if args.distribution or args.notarized:
     for code in [app, *libraries]:
         subprocess.run(
             ['codesign', '--verify', '--all-architectures', '--deep', '--strict', '-R',
-             'anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists',
+             '=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists',
              str(code)], check=True)
         for architecture in sorted(required):
             details = subprocess.run(

@@ -6,7 +6,9 @@ version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resource
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent dist/Mica.app "dist/Mica-$version-universal.zip"
 # Explicit allowlist: never package build caches, local battery history, pairing
 # data, the parent workspace, or private machine files.
-COPYFILE_DISABLE=1 /usr/bin/tar -czf "dist/Mica-$version-source.tar.gz" \
+COPYFILE_DISABLE=1 /usr/bin/tar --exclude='__pycache__' --exclude='*.pyc' \
+  --exclude='*.p12' --exclude='*.p8' --exclude='*.key' --exclude='.env*' \
+  -czf "dist/Mica-$version-source.tar.gz" \
   Package.swift Sources Tests Resources/Info.plist Resources/AppIcon.icns \
   scripts README.md LICENSE CONTRIBUTING.md SECURITY.md CHANGELOG.md VALIDATION.md docs .github .gitignore
 (

@@ -51,6 +51,8 @@ jobs:
             print -u2 "A local CI signature must not pass Developer ID verification."
             exit 1
           fi
+          # Reject the actual signature, rather than accepting a broken verifier.
+          rg -q 'code failed to satisfy specified code requirement' .build/distribution-check.log
       - uses: actions/upload-artifact@v4
         with:
           name: Mica-universal-${{ matrix.os }}
