@@ -53,14 +53,28 @@ resolve the required symbols and the resulting universal bundle verifies.
 
 ## Not yet physically verified
 
-- An actual Intel Mac, Monterey or another older macOS installation. Intel linking
-  and synthetic Intel fixtures pass; this is not a physical Intel sensor test.
+- Intel temperature, power and battery sensors on a physical Mac, or Monterey
+  and another older macOS installation. Intel-hosted tests and universal linking
+  pass; this is not a physical Intel sensor-validation session.
 - A real connected iPhone/iPad. The device adapter has fixture and empty-device
   integration coverage, but capacity/health availability varies by iOS release.
 - Desktops without batteries, T2-specific firmware, every Intel sensor map,
   PowerPC/32-bit Macs, a real login/reboot, or physically closing a notebook lid.
-- GitHub CI execution is recorded separately after publication; its configuration
-  runs tests and universal-build verification on Intel and Apple Silicon runners.
+
+## GitHub CI
+
+[Build and test run 40231934600](https://github.com/angad/Mica/actions/runs/40231934600)
+passed for application/build revision `c2f4c7e3c5a6fa6eb9b6cb141a716e4f1f8b027a`.
+The release's subsequent changes only record these results in documentation.
+
+- **37 tests in five suites pass on both Intel and Apple Silicon runners.**
+- Intel uses macOS 15 with Xcode 26.3; Apple Silicon uses the current macOS runner
+  and its default Xcode. This also exercises Swift 6.2+ / macOS 26 SDK builds.
+- Both runners compile arm64 and x86_64, verify minimum macOS 12.3, signatures,
+  bundled-library architectures and dependency paths, package the app/source,
+  and upload ZIP artifacts that preserve app executable permissions.
+- The verification script explicitly asks `otool` for all architectures; older
+  tool versions otherwise inspect only the host architecture by default.
 
 This is an independently implemented MIT **preview** with an explicit support
 matrix, not a claim that every historical Mac or coconutBattery Plus feature was
