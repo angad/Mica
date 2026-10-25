@@ -10,8 +10,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel, macos-latest]
+        include:
+          # The Intel image still defaults to Xcode 16 / Swift 6.1.
+          - os: macos-15-intel
+            developer-directory: /Applications/Xcode_26.3.app/Contents/Developer
+          - os: macos-latest
+            developer-directory: /Applications/Xcode.app/Contents/Developer
     runs-on: ${{ matrix.os }}
+    env:
+      DEVELOPER_DIR: ${{ matrix.developer-directory }}
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain

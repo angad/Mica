@@ -49,7 +49,7 @@ extracts the archives, and deletes the temporary download without installing a
 toolchain. A full Xcode distribution with Intel archives does not need this step.
 Set `MICA_INTEL_RUNTIME_DIR` to use an existing compatible archive directory.
 
- The release script creates an
+The release script creates an
 arm64 + x86_64 bundle, includes required back-deployment libraries, and signs it
 locally. It is not Developer ID signed or notarized for public binary distribution.
 
