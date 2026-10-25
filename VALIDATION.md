@@ -1,6 +1,39 @@
-# Validation — Mica 1.2.0 preview · 25 October 2026
+# Validation — Mica 1.3.0 preview · 25 October 2026
 
-## Verified locally
+## 1.3.0 checks
+
+- Universal arm64/x86_64 build and strict signature verification pass, targeting
+  macOS 12.3. Native M1 test and UI checks use the same Mac described below.
+- **57 tests in eight suites pass locally.** Added coverage checks sensor-selection
+  priorities, valid CPU sampling intervals, native Mach CPU-time conversion, PID
+  reuse, counter resets, process-sampler demand/pause lifecycle, sustained alerts,
+  recovery/cooldown, missing readings, invalid thresholds and bounded event history.
+- Timed-session tests check assertion reuse, expiry, wake past deadline, invalid
+  requests, known battery-power cutoff and honest state after release failure.
+- The real two-second `--check-timed-awake` test creates and releases an idle-sleep
+  assertion automatically, with the persistent sleep setting unchanged. Native
+  duration and end-time controls also start and end sessions correctly; a typed
+  custom 45-minute session was started, ended and restored to the default preset.
+- All eight native status-item click checks pass with the new process views;
+  repeated clicks close the active popover. Tab changes reset scroll position.
+- CPU and memory panels display live top-five process lists. A native diagnostic
+  read returned 364 readable processes and 363 comparable CPU samples; permissions
+  and counts vary. No process-name diagnostics are published with this evidence.
+- The Alerts panel saves/restores an edited threshold. macOS notification permission
+  was granted with user approval, and macOS accepted a test local notification
+  without an error. No claim is made that a banner is visible under every Focus
+  or system notification setting. All alert rules remain off after testing.
+- Updated `/Applications/Mica.app` while preserving preferences, local battery
+  history and the enabled Open at login setting. Stay awake and persistent lid
+  sleep overrides remain off. The prior app bundle is retained as a local rollback.
+- Performance samples and the limits of their comparison are recorded in
+  [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+## Previous 1.2.0 hardware and distribution checks
+
+The remaining sections record the earlier 1.2.0 validation.
+
+### Verified locally
 
 - Apple Silicon M1 MacBook Air, model `MacBookAir10,1`, 8 logical cores, 8 GiB RAM,
   macOS 27.0.1, Swift 6.4 / macOS 27 SDK.
@@ -34,7 +67,7 @@
   startup entry was removed. Settings/history survive the update. No persistent
   sleep override was enabled.
 
-## Build-toolchain note
+### Build-toolchain note
 
 This Apple Silicon CLT distribution omitted x86_64 compatibility archives. The
 release links the needed archives from the official Swift 6.2 macOS package,
@@ -51,7 +84,7 @@ backend emits a deprecation notice, and this CLT emits warnings about its skippe
 ARM-only archives during Intel linking; the explicitly supplied Intel archives
 resolve the required symbols and the resulting universal bundle verifies.
 
-## Not yet physically verified
+### Not yet physically verified
 
 - Intel temperature, power and battery sensors on a physical Mac, or Monterey
   and another older macOS installation. Intel-hosted tests and universal linking
@@ -61,7 +94,7 @@ resolve the required symbols and the resulting universal bundle verifies.
 - Desktops without batteries, T2-specific firmware, every Intel sensor map,
   PowerPC/32-bit Macs, a real login/reboot, or physically closing a notebook lid.
 
-## GitHub CI
+### GitHub CI (1.2.0)
 
 [Build and test run 40231934600](https://github.com/angad/Mica/actions/runs/40231934600)
 passed for application/build revision `c2f4c7e3c5a6fa6eb9b6cb141a716e4f1f8b027a`.

@@ -24,7 +24,7 @@ struct SettingsView: View {
             tint: .blue.opacity(0.12), radius: 13)
         VStack(alignment: .leading, spacing: 3) {
           Text("Mica").font(.system(size: 21, weight: .semibold))
-          Text("Your Mac, at a glance.").font(.system(size: 12)).foregroundColor(.secondary)
+          Text("System monitoring").font(.system(size: 12)).foregroundColor(.secondary)
         }
         Spacer()
         HStack(spacing: 5) {
@@ -44,7 +44,7 @@ struct SettingsView: View {
             VStack(spacing: 6) {
               Image(systemName: item.symbol).font(.system(size: 19, weight: .regular)).frame(
                 height: 23)
-              Text(item.rawValue).font(
+              Text(item == .temperature ? "Temp" : item.rawValue).font(
                 .system(size: 11, weight: pane == item ? .semibold : .regular))
             }.frame(maxWidth: .infinity).frame(height: 51).foregroundColor(
               pane == item ? Color.accentColor : .secondary
@@ -86,7 +86,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 5) {
               Text(
                 pane == .general
-                  ? "Make it yours" : pane == .power ? "Power & energy" : pane.rawValue
+                  ? "General" : pane == .power ? "Power & energy" : pane.rawValue
               ).font(.system(size: 23, weight: .semibold))
               Text(subtitle).font(.system(size: 12)).foregroundColor(.secondary)
             }
@@ -98,7 +98,7 @@ struct SettingsView: View {
           }
           content
         }.padding(.horizontal, 28).padding(.vertical, 18)
-      }.frame(maxWidth: .infinity, maxHeight: .infinity)
+      }.id(pane.rawValue).frame(maxWidth: .infinity, maxHeight: .infinity)
       Divider()
       HStack {
         Text("Mica \(AppVersion.current)").font(.system(size: 10)).foregroundColor(
@@ -129,11 +129,12 @@ struct SettingsView: View {
     case .memory: "A stacked view of physical memory."
     case .disk: "Read and write activity across physical storage."
     case .network: "Upload and download, with the familiar Tx / Rx layout."
-    case .temperature: "Live readings from your Mac’s thermal sensors."
-    case .power: "See what comes in, what your Mac uses, and energy over time."
+    case .temperature: "Readings from available hardware sensors."
+    case .power: "Charger input, system power draw and session energy."
     case .battery: "Capacity, cycles and battery health over time."
     case .devices: "Battery diagnostics for paired iPhones and iPads."
-    case .general: "The familiar meters, with a fresh coat of glass."
+    case .general: "Sleep controls, layout, refresh interval and startup settings."
+    case .alerts: "Local notifications for sustained conditions and thresholds."
     }
   }
   @ViewBuilder private var content: some View {
@@ -149,8 +150,9 @@ struct SettingsView: View {
             s.cores.map(\.system).reduce(0, +) / Double(max(1, s.cores.count)) * 100), .red)
       }
       chart(.cpu)
+      group { TopProcessesView(processes: monitor.processes, memory: false, viewer: "settings-cpu") }
       group {
-        row("Display", detail: "Match your original per-core bars") {
+        row("Display", detail: "Per-core bars or total percentage") {
           Picker("Display", selection: $settings.value.cpuPercent) {
             Text("Bars").tag(false)
             Text("Percentage").tag(true)
@@ -191,6 +193,7 @@ struct SettingsView: View {
         Divider()
         row("Swap used") { Text(bytes(s.swap)).monospacedDigit().foregroundColor(.secondary) }
       }
+      group { TopProcessesView(processes: monitor.processes, memory: true, viewer: "settings-memory") }
     case .disk:
       HStack(spacing: 12) {
         stat("Read", s.diskAvailable ? rate(s.diskRead) : "Unavailable", .green)
@@ -330,7 +333,7 @@ struct SettingsView: View {
       MobileBatteryPanel(
         mobile: monitor.mobile, settings: settings, history: monitor.batteryHistory)
     case .general:
-      group { SleepControlsView(sleep: sleep) }
+      group { SleepControlsView(sleep: sleep, settings: settings) }
       group {
         row("Update interval", detail: "Applies to all meters") {
           Picker("Update interval", selection: $settings.value.interval) {
@@ -389,6 +392,8 @@ struct SettingsView: View {
       note(
         "Click a meter to see its live details. Right-click the menu bar meters to open settings or quit. Hold ⌘ and drag to reposition the whole group.",
         symbol: "cursorarrow.click")
+    case .alerts:
+      AlertsView(settings: settings, alerts: monitor.alerts)
     }
   }
   private func stat(_ title: String, _ value: String, _ color: Color) -> some View {

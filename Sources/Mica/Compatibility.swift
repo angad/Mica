@@ -4,7 +4,7 @@ import SwiftUI
 
 enum AppVersion {
   static var current: String {
-    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0"
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.3.0"
   }
 }
 private struct MeterGlass: ViewModifier {

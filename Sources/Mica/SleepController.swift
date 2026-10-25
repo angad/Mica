@@ -109,47 +109,98 @@ final class SleepController: ObservableObject {
   @Published private(set) var lidSleepDisabled: Bool?
   @Published private(set) var changingLidSleep = false
   @Published private(set) var errorMessage: String?
+  @Published private(set) var sessionDeadline: Date?
+  @Published private(set) var sessionMessage: String?
   let supportsClosedLid: Bool
   private let backend: SleepBackend
+  private let clock: () -> Date
+  private let observe: Bool
   private var assertion: IOPMAssertionID?
-  private var timer: Timer?
+  private var deadlineTimer: Timer?
+  private var wakeObserver: NSObjectProtocol?
 
-  init(backend: SleepBackend = MacSleepBackend(), observe: Bool = true) {
+  init(backend: SleepBackend = MacSleepBackend(), observe: Bool = true, now: @escaping () -> Date = Date.init) {
     self.backend = backend
+    self.observe = observe
+    self.clock = now
     supportsClosedLid = backend.supportsClosedLid
     refresh()
     if observe {
-      timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-        self?.refresh()
-      }
-      timer?.tolerance = 1
+      wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+      ) { [weak self] _ in self?.checkSession(); self?.refresh() }
     }
   }
-
   deinit {
-    timer?.invalidate()
+    deadlineTimer?.invalidate()
+    if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
     if let assertion { try? backend.endStayAwake(assertion) }
   }
-
   func refresh() {
     guard !changingLidSleep else { return }
     lidSleepDisabled = backend.readSleepDisabled()
   }
-
   func setStayAwake(_ enabled: Bool) {
-    guard enabled != stayAwake else { return }
     errorMessage = nil
     do {
       if enabled {
-        assertion = try backend.beginStayAwake()
+        if assertion == nil { assertion = try backend.beginStayAwake() }
       } else if let assertion {
         try backend.endStayAwake(assertion)
         self.assertion = nil
       }
       stayAwake = enabled
+      sessionDeadline = nil; sessionMessage = nil
+      deadlineTimer?.invalidate(); deadlineTimer = nil
     } catch { errorMessage = error.localizedDescription }
   }
-
+  func startSession(minutes: Int) {
+    guard (1...1440).contains(minutes) else {
+      errorMessage = "Choose a duration between 1 and 1440 minutes."
+      return
+    }
+    startSession(until: clock().addingTimeInterval(Double(minutes) * 60))
+  }
+  func startSession(until date: Date) {
+    let duration = date.timeIntervalSince(clock())
+    guard duration.isFinite, duration > 0, duration <= 86400 else {
+      errorMessage = "Choose a future end time within 24 hours."
+      return
+    }
+    errorMessage = nil
+    do {
+      if assertion == nil { assertion = try backend.beginStayAwake() }
+      stayAwake = true; sessionDeadline = date; sessionMessage = nil
+      scheduleDeadline()
+    } catch { errorMessage = error.localizedDescription }
+  }
+  func checkSession() {
+    guard stayAwake, let sessionDeadline else { return }
+    if clock() >= sessionDeadline { endSession(reason: "Timed session ended.") }
+    else { scheduleDeadline() }
+  }
+  private func scheduleDeadline() {
+    deadlineTimer?.invalidate(); deadlineTimer = nil
+    guard observe, stayAwake, let sessionDeadline else { return }
+    let remaining = max(0.01, sessionDeadline.timeIntervalSince(clock()))
+    let timer = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
+      self?.deadlineTimer = nil
+      self?.checkSession()
+    }
+    timer.tolerance = min(1, remaining * 0.01)
+    RunLoop.main.add(timer, forMode: .common)
+    deadlineTimer = timer
+  }
+  func enforceBatteryLimit(_ battery: BatteryReading?, threshold: Double) {
+    guard stayAwake, (1...50).contains(threshold), battery?.externalPower == false,
+      let charge = battery?.chargePercent, charge.isFinite, (0...100).contains(charge), charge <= threshold
+    else { return }
+    endSession(reason: String(format: "Session ended at %.0f%% battery.", charge))
+  }
+  private func endSession(reason: String) {
+    setStayAwake(false)
+    if !stayAwake { sessionMessage = reason }
+  }
   func setLidSleepDisabled(_ disabled: Bool) {
     guard !changingLidSleep else { return }
     refresh()
@@ -171,31 +222,83 @@ final class SleepController: ObservableObject {
       switch result {
       case .success:
         if self.lidSleepDisabled != disabled {
-          self.errorMessage =
-            "macOS did not confirm the new sleep setting. The toggle shows the current system state."
+          self.errorMessage = "macOS did not confirm the new sleep setting. The toggle shows the current system state."
         }
       case .failure(.cancelled): break
       case .failure(let error): self.errorMessage = error.localizedDescription
       }
     }
   }
-
   func stop() {
-    timer?.invalidate()
-    timer = nil
+    deadlineTimer?.invalidate(); deadlineTimer = nil
     setStayAwake(false)
   }
 }
 
 struct SleepControlsView: View {
   @ObservedObject var sleep: SleepController
+  @ObservedObject var settings: Settings
+  @ViewState private var sessionMode = 0
+  @ViewState private var endTime = Date().addingTimeInterval(3600)
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Label("Sleep controls", systemImage: "moon.zzz").font(.system(size: 13, weight: .semibold))
       control(
         "Stay awake",
-        detail: "Prevents idle sleep until Mica quits. The display can still turn off.",
+        detail: "Prevents idle system sleep. The display can still turn off.",
         binding: Binding(get: { sleep.stayAwake }, set: { sleep.setStayAwake($0) }))
+      if sleep.stayAwake {
+        if let end = sleep.sessionDeadline {
+          Text("Ends " + DateFormatter.localizedString(from: end, dateStyle: .short, timeStyle: .short))
+            .font(.system(size: 11)).monospacedDigit()
+        } else {
+          Text("Active until stopped or Mica quits.").font(.system(size: 11))
+        }
+      } else if let message = sleep.sessionMessage {
+        Text(message).font(.system(size: 11)).foregroundColor(.secondary)
+      }
+      Divider()
+      Picker("Timed session", selection: $sessionMode) {
+        Text("Duration").tag(0); Text("End time").tag(1)
+      }.pickerStyle(.segmented).frame(width: 260)
+      if sessionMode == 0 {
+        HStack {
+          Picker("Duration preset", selection: $settings.value.wakeDurationMinutes) {
+            Text("15 minutes").tag(15)
+            Text("30 minutes").tag(30)
+            Text("1 hour").tag(60)
+            Text("2 hours").tag(120)
+            if ![15, 30, 60, 120].contains(settings.value.wakeDurationMinutes) {
+              Text("Custom").tag(settings.value.wakeDurationMinutes)
+            }
+          }.frame(width: 220)
+          TextField("Minutes", value: $settings.value.wakeDurationMinutes, format: .number)
+            .frame(width: 65).accessibilityLabel("Session minutes")
+          Text("min").font(.system(size: 11))
+          Stepper("Session minutes", value: $settings.value.wakeDurationMinutes, in: 1...1440)
+            .labelsHidden().accessibilityLabel("Adjust session minutes")
+        }
+      } else {
+        DatePicker("End session at", selection: $endTime, displayedComponents: [.date, .hourAndMinute])
+      }
+      HStack {
+        Button("Start timed session") {
+          if sessionMode == 0 { sleep.startSession(minutes: settings.value.wakeDurationMinutes) }
+          else { sleep.startSession(until: endTime) }
+        }
+        if sleep.stayAwake { Button("End session") { sleep.setStayAwake(false) } }
+      }.controlSize(.small)
+      Toggle("End session on low battery", isOn: Binding(
+        get: { settings.value.wakeBatteryFloor > 0 },
+        set: { settings.value.wakeBatteryFloor = $0 ? 20 : 0 }))
+        .font(.system(size: 11)).toggleStyle(.switch)
+      if settings.value.wakeBatteryFloor > 0 {
+        Stepper("Stop at \(String(format: "%.0f", settings.value.wakeBatteryFloor))% while on battery",
+          value: $settings.value.wakeBatteryFloor, in: 1...50)
+          .font(.system(size: 11)).accessibilityLabel("Session battery cutoff")
+        Text("Uses live battery readings while monitoring is running.")
+          .font(.system(size: 10)).foregroundColor(.secondary)
+      }
       Divider()
       control(
         "No sleep when lid closed",
@@ -227,7 +330,7 @@ struct SleepControlsView: View {
         .font(.system(size: 10)).foregroundColor(.secondary).fixedSize(
           horizontal: false, vertical: true)
       }
-    }
+    }.onAppear { sleep.refresh(); sleep.checkSession() }
   }
   private func control(_ title: String, detail: String, binding: Binding<Bool>) -> some View {
     HStack(spacing: 18) {

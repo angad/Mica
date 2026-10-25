@@ -30,6 +30,12 @@ struct PopoverView: View {
       HistoryChart(monitor: monitor, meter: meter).frame(height: 64)
       Divider()
       VStack(spacing: 8) { details }
+      if meter == .cpu || meter == .memory {
+        Divider()
+        TopProcessesView(
+          processes: monitor.processes, memory: meter == .memory,
+          viewer: "popover-" + meter.rawValue)
+      }
       HStack {
         Text(
           "Updated \(DateFormatter.localizedString(from: monitor.snapshot.timestamp, dateStyle: .none, timeStyle: .medium))"

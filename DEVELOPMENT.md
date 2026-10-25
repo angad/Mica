@@ -67,7 +67,12 @@ Charger input uses `PowerTelemetryData.SystemPowerIn`; system consumption uses
 current. These are hardware estimates, not an external wall-plug measurement.
 `AdapterDetails.Watts` is rated capacity and never substituted for live input.
 
-**Stay awake** holds an idle-sleep assertion while the app runs. It does not prevent
+**Stay awake** holds one idle-sleep assertion while the app runs. Timed sessions
+reuse that assertion and one nonrepeating timer. On wake, Mica checks the deadline
+and ends an expired session. A clock change that leaves the deadline in the future
+reschedules the timer. Session state is not persisted across launches. The optional
+battery cutoff uses known charge and external-power readings while monitoring is
+unpaused. It does not modify the persistent lid setting. It does not prevent
 explicit sleep or lid-close sleep. **No sleep when lid closed** is a separate,
 opt-in global `pmset disablesleep` setting requiring the native macOS administrator
 prompt. It persists after quitting until switched off. Turn it off before carrying
@@ -78,11 +83,16 @@ a notebook in a bag. Neither control is enabled automatically.
 ```sh
 ./dist/Mica.app/Contents/MacOS/Mica --diagnose
 ./dist/Mica.app/Contents/MacOS/Mica --diagnose-devices
+./dist/Mica.app/Contents/MacOS/Mica --diagnose-processes
+./dist/Mica.app/Contents/MacOS/Mica --check-timed-awake
 ./dist/Mica.app/Contents/MacOS/Mica --check-clicks
 ```
 
 Diagnostics only print local samples. Run outside restrictive shell sandboxes to
-access normal macOS services. Review data before attaching a report to an issue.
+access normal macOS services. Process diagnostics include process names and PIDs;
+review data before attaching a report to an issue. `--check-timed-awake` creates a
+two-second idle-sleep assertion and verifies expiry without changing persistent
+sleep settings.
 `--check-clicks` uses a separate settings domain and exercises native status-item
 hit targets; it does not change the persistent sleep setting.
 
@@ -91,7 +101,7 @@ hit targets; it does not change the persistent sleep setting.
 See [contributing](CONTRIBUTING.md), [security/privacy](SECURITY.md), and
 [interface references](docs/SOURCES.md). MenuMeters and coconutBattery are feature
 references, not bundled dependencies or copied implementations. This release does
-not claim every coconutBattery Plus feature: SSD lifetime analysis, notifications,
+not claim every coconutBattery Plus feature: SSD lifetime analysis,
 print templates and online history comparisons are outside its scope.
 
 CI builds both binary architectures and runs the unit suite. Physical tests on
@@ -117,3 +127,29 @@ The [performance note](docs/PERFORMANCE.md) includes a reproducible manual sampl
 and raw measurements. It is a developer tool; the installed app does not run it.
 The README screenshots were captured from the real app on macOS 27.0.1 using the
 existing app-only window export. They show real readings, not simulated device data.
+
+## Sampling and alerts
+
+The selected temperature sensor updates at the configured meter interval. Other
+sensor values refresh every 30 seconds in the background; opening a temperature
+view requests live detailed reads. IOHID service discovery is cached for up to
+60 seconds. Closing settings/popovers releases their observing views.
+
+Process sampling uses `proc_listpids`, `proc_pid_rusage` and `proc_name`. It reads
+CPU counters, process start time, name and physical memory footprint, with no
+command-line arguments or environment access. Mach timebase conversion is applied
+before computing CPU percentages. PID reuse, counter resets and sampling gaps do
+not become CPU spikes. A shared two-second sampler runs only while a CPU or memory
+process list is visible, and stops when monitoring is paused.
+
+Alerts evaluate existing snapshots. Home-volume free space is read at most once
+per 30 seconds, and only when that rule and alerts are enabled. Rules use monotonic
+sample times, require observed duration and reset pending duration on missing
+readings, pause or sleep gaps. A fired condition must recover before rearming;
+cooldown also limits repeat notifications. Battery alerts use the Mac battery.
+CPU alerts use whole-system load (100% means all cores occupied); process rows use
+100% per core. Temperature thresholds are in Celsius regardless of display units.
+
+Notification authorization is requested only from the explicit Alerts button.
+Notifications use the native local notification center, without sounds, accounts,
+remote push registration or a server. History is limited to 20 in-memory events.

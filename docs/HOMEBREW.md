@@ -17,7 +17,7 @@ and [Homebrew's tap-trust documentation](https://docs.brew.sh/Tap-Trust).
 
 ## First launch
 
-The 1.2.0 preview is ad-hoc signed and not notarized. Installing through Homebrew
+The 1.3.0 preview is ad-hoc signed and not notarized. Installing through Homebrew
 does not change that status or remove quarantine. If macOS blocks opening the app,
 read [Apple's first-open guidance](https://support.apple.com/en-us/102445) and use
 Privacy & Security only if you trust the source. Code signing remains deferred.

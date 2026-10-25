@@ -21,4 +21,10 @@ void gm_sample(GMSample *sample);
 void gm_sample_selected(GMSample *sample, const char *selection, int detailed);
 int gm_sensor_rank(const char *name, const char *selection);
 double gm_decode_smc(const char *type, const uint8_t *bytes, uint32_t length);
+typedef struct {
+    int32_t pid;
+    uint64_t started, cpu_nanoseconds, memory_bytes;
+    char name[256];
+} GMProcess;
+int gm_read_processes(GMProcess *output, int capacity, int *total);
 #endif

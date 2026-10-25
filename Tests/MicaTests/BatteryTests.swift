@@ -29,7 +29,7 @@ import Testing
       JSONSerialization.jsonObject(with: JSONEncoder().encode(BatteryReport(reading)))
         as? [String: Any])
     #expect(report["healthPercent"] as? Double == 80)
-    #expect(report["appVersion"] as? String == "1.2.0")
+    #expect(report["appVersion"] as? String == "1.3.0")
   }
   @Test func renamedAppMigratesLegacyPreferencesWithoutChangingTheOriginal() throws {
     let identifier = UUID().uuidString

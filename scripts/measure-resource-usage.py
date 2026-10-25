@@ -55,8 +55,8 @@ def main():
         "rss_mib_median": statistics.median(row["rss_mib"] for row in readings),
         "rss_mib_peak": max(row["rss_mib"] for row in readings),
     }
-    args.output.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n")
-    with args.output.with_suffix(".csv").open("w", newline="") as file:
+    Path(str(args.output) + ".json").write_text(json.dumps(summary, indent=2) + "\n")
+    with Path(str(args.output) + ".csv").open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(readings[0]))
         writer.writeheader()
         writer.writerows(readings)

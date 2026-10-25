@@ -7,6 +7,34 @@ import SwiftUI
 @main
 struct MicaMain {
   static func main() {
+    if CommandLine.arguments.contains("--diagnose-processes") {
+      let before = ProcessReader.read()
+      Thread.sleep(forTimeInterval: 1)
+      let after = ProcessReader.read()
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      if let data = try? encoder.encode(ProcessReader.readings(after, previous: before)) {
+        print(String(decoding: data, as: UTF8.self))
+      }
+      return
+    }
+    if CommandLine.arguments.contains("--check-timed-awake") {
+      let backend = MacSleepBackend()
+      let before = backend.readSleepDisabled()
+      let controller = SleepController(backend: backend)
+      controller.startSession(until: Date().addingTimeInterval(2))
+      guard controller.stayAwake else { fputs("Could not create timed assertion\n", stderr); exit(1) }
+      let limit = Date().addingTimeInterval(5)
+      while controller.stayAwake && Date() < limit {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+      }
+      guard !controller.stayAwake, backend.readSleepDisabled() == before else {
+        controller.stop()
+        fputs("Timed assertion did not expire cleanly\n", stderr); exit(1)
+      }
+      print("Timed assertion expired and released. Persistent sleep state unchanged.")
+      return
+    }
     if CommandLine.arguments.contains("--check-awake") {
       let backend = MacSleepBackend()
       do {
@@ -79,7 +107,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
   private var window: NSWindow?
   private let popover = NSPopover()
   private var selectedMeter: Meter?
-  private var lastPane: Pane = .cpu
+  private var lastPane: Pane = {
+    let args = CommandLine.arguments
+    if args.contains("--battery-settings") { return .battery }
+    if args.contains("--devices-settings") { return .devices }
+    if args.contains("--sleep-settings") { return .general }
+    if args.contains("--alerts-settings") { return .alerts }
+    return .cpu
+  }()
   private var subscriptions = Set<AnyCancellable>()
   func applicationDidFinishLaunching(_ notification: Notification) {
     let others = NSRunningApplication.runningApplications(
@@ -136,6 +171,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
       name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), object: nil)
     applyAppearance()
     updateMeter()
+    monitor.onSample = { [weak self] snapshot in
+      guard let self else { return }
+      self.sleep.enforceBatteryLimit(snapshot.battery, threshold: self.settings.value.wakeBatteryFloor)
+    }
+    NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+    ) { [weak self] _ in self?.monitor.alerts.resetPending() }
     if CommandLine.arguments.contains("--check-clicks") {
       settings.value = Preferences()
       settings.value.enabled = Set(Meter.allCases)
@@ -147,6 +189,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
       || CommandLine.arguments.contains("--settings") || CommandLine.arguments.contains("--render")
       || CommandLine.arguments.contains("--battery-settings")
       || CommandLine.arguments.contains("--devices-settings")
+      || CommandLine.arguments.contains("--sleep-settings")
+      || CommandLine.arguments.contains("--alerts-settings")
     {
       showSettings()
       UserDefaults.standard.set(true, forKey: "hasLaunched")
@@ -231,7 +275,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     awakeItem.target = self
     awakeItem.state = sleep.stayAwake ? .on : .off
     awakeItem.toolTip = "Prevents idle sleep until Mica quits."
+    if let end = sleep.sessionDeadline {
+      awakeItem.title = "Stay awake until " + DateFormatter.localizedString(from: end, dateStyle: .none, timeStyle: .short)
+    }
     menu.addItem(awakeItem)
+    let timed = NSMenuItem(title: "Timed stay awake", action: nil, keyEquivalent: "")
+    let durations = NSMenu()
+    for minutes in [15, 30, 60, 120] {
+      let item = NSMenuItem(title: "\(minutes) minutes", action: #selector(startTimedStayAwake(_:)), keyEquivalent: "")
+      item.target = self; item.tag = minutes
+      durations.addItem(item)
+    }
+    timed.submenu = durations
+    menu.addItem(timed)
     let lidItem = NSMenuItem(
       title: "No sleep when lid closed…", action: #selector(toggleLidSleep), keyEquivalent: "")
     lidItem.target = self
@@ -320,14 +376,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     guard !popover.isShown else { return }
     popover.contentViewController = nil
     monitor.showDetailedSensors(false, viewer: "popover")
+    monitor.processes.setVisible(false, viewer: "popover-cpu")
+    monitor.processes.setVisible(false, viewer: "popover-memory")
   }
   func windowWillClose(_ notification: Notification) {
     // Closed hosting views otherwise continue observing each sample and laying out.
     window?.contentView = nil
     window = nil
     monitor.showDetailedSensors(false, viewer: "settings")
+    monitor.processes.setVisible(false, viewer: "settings-cpu")
+    monitor.processes.setVisible(false, viewer: "settings-memory")
   }
   @objc private func toggleStayAwake() { sleep.setStayAwake(!sleep.stayAwake) }
+  @objc private func startTimedStayAwake(_ sender: NSMenuItem) { sleep.startSession(minutes: sender.tag) }
   @objc private func toggleLidSleep() { sleep.setLidSleepDisabled(sleep.lidSleepDisabled != true) }
   @objc private func togglePause() { monitor.togglePause() }
   @objc func showSettings() {
@@ -345,10 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
       let container = NSHostingView(
         rootView: SettingsView(
           settings: settings, monitor: monitor, sleep: sleep,
-          pane: CommandLine.arguments.contains("--battery-settings")
-            ? .battery
-            : CommandLine.arguments.contains("--devices-settings")
-              ? .devices : CommandLine.arguments.contains("--sleep-settings") ? .general : lastPane,
+          pane: lastPane,
           onPaneChanged: { [weak self] in self?.lastPane = $0 }))
       w.contentView = container
       w.setContentSize(NSSize(width: 720, height: 720))

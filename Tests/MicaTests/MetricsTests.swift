@@ -75,4 +75,23 @@ import Testing
     #expect(monitor.snapshot.sessionWh == 0)
     defaults.removePersistentDomain(forName: "sg.angad.Mica.unit-tests")
   }
+  @Test func cpuAlertsRequireTwoValidComparableSamples() {
+    let domain = "sg.angad.Mica.cpu-validity-tests"
+    let defaults = UserDefaults(suiteName: domain)!
+    defer { defaults.removePersistentDomain(forName: domain) }
+    let monitor = Monitor(settings: Settings(defaults: defaults), start: false)
+    var raw = GMSample()
+    raw.core_count = 1
+    monitor.accept(raw, time: 100)
+    raw.cpu_valid = 1
+    monitor.accept(raw, time: 101)
+    #expect(!monitor.snapshot.cpuAvailable)
+    monitor.accept(raw, time: 102)
+    #expect(monitor.snapshot.cpuAvailable)
+    raw.core_count = 2
+    monitor.accept(raw, time: 103)
+    #expect(!monitor.snapshot.cpuAvailable)
+    monitor.accept(raw, time: 400)
+    #expect(!monitor.snapshot.cpuAvailable)
+  }
 }

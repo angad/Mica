@@ -20,6 +20,8 @@ assert '/opt/homebrew/' not in dependencies and '/Users/' not in dependencies
 for library in (app / 'Contents/Frameworks').glob('*.dylib'):
     contained = set(subprocess.check_output(['lipo', '-archs', str(library)], text=True).split())
     assert required <= contained, f'{library.name} lacks a release architecture: {contained}'
-assert info['CFBundleShortVersionString'] == '1.2.0'
+source_info = plistlib.loads(Path('Resources/Info.plist').read_bytes())
+assert info['CFBundleShortVersionString'] == source_info['CFBundleShortVersionString']
+assert info['CFBundleVersion'] == source_info['CFBundleVersion']
 print(f'Mica {info["CFBundleShortVersionString"]}: universal, minimum macOS {minimum}, signature and dependencies verified.')
 PY

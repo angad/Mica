@@ -18,7 +18,7 @@ It is free and [MIT licensed](LICENSE).
 brew install --cask angad/tap/mica
 ```
 
-Or [download the latest preview](https://github.com/angad/Mica/releases/tag/v1.2.0)
+Or [download the latest preview](https://github.com/angad/Mica/releases/tag/v1.3.0)
 and drag Mica to Applications. Mica requires macOS 12.3 Monterey or later and
 supports Apple Silicon and Intel.
 
@@ -30,8 +30,8 @@ Homebrew preserves macOS security checks. [Installation details](docs/HOMEBREW.m
 
 | Meter | Data shown |
 | --- | --- |
-| CPU | Total load, per-core user/system usage and recent history |
-| Memory | Used and available RAM, memory pressure, wired, active and compressed memory, and swap |
+| CPU | Total load, per-core user/system usage, recent history and top processes |
+| Memory | Used and available RAM, memory pressure, wired, active and compressed memory, swap and top processes |
 | Network | Upload/download rates and the selected network interface |
 | Storage | Disk read/write activity |
 | Temperature | Readings from available hardware sensors |
@@ -39,6 +39,10 @@ Homebrew preserves macOS security checks. [Installation details](docs/HOMEBREW.m
 
 Click a meter to open its details. The layout, colors, update interval and
 appearance are configurable. CPU and memory support bar and percentage displays.
+CPU and memory details list the five largest processes. Process CPU uses 100% for
+one fully occupied core; memory uses physical footprint. Process sampling runs
+every two seconds while a process list is visible. macOS may restrict some processes.
+
 Mica uses Liquid Glass on macOS 26+ and native material surfaces on older versions.
 
 ## Battery diagnostics
@@ -57,11 +61,29 @@ battery fields depend on the device and iOS version.
 ## Sleep controls
 
 The Stay awake switch prevents idle system sleep until it is disabled or Mica
-quits. The display can still turn off.
+quits. You can also start a timed session for 1–1440 minutes or choose an end time
+within the next 24 hours. Quick presets are available from the menu bar context
+menu. Sessions end automatically and do not resume after quitting. The display
+can still turn off.
+
+An optional battery cutoff ends the session at a chosen charge level while on
+battery power. It uses live readings while monitoring is running.
 
 A separate, opt-in **No sleep when lid closed** control is available on notebooks.
 It needs macOS administrator approval and stays enabled until you turn it off.
 Turn it off before carrying your Mac in a bag.
+
+## Alerts
+
+Configure local notifications for sustained CPU usage, memory pressure, low free
+space on the home volume, battery charge, or the selected temperature sensor. Each
+rule has a threshold, duration and cooldown. A rule notifies once until the
+condition recovers. Missing readings do not trigger alerts.
+CPU alert thresholds apply to total system usage; temperature thresholds use Celsius.
+
+Alerts are off by default. Enable individual rules in **Settings → Alerts** and
+request macOS notification permission there. The most recent 20 alerts are kept
+in memory for the current app session.
 
 ## Screenshots
 
@@ -90,19 +112,24 @@ device reads use existing local pairing. [Privacy details](SECURITY.md).
 
 ## CPU and memory usage
 
-Measured for the Mica process, with the settings window closed and the menu bar
+Measured for the Mica process, with settings and popovers closed and the menu bar
 updating every second:
 
-| Resource | M1 MacBook Air sample |
+| Resource | M1 MacBook Air sample, Mica 1.3.0 |
 | --- | --- |
-| CPU | 3.8% of one core, average |
-| Resident memory (RSS) | 38.6 MiB, median |
-| Peak resident memory (RSS) | 39.4 MiB |
+| CPU | 0.53% of one core, average |
+| Resident memory (RSS) | 34.5 MiB, median |
+| Peak resident memory (RSS) | 44.8 MiB during the sample |
 
-One 60-second sample on an 8 GB M1 MacBook Air running macOS 27.0.1, Mica 1.2.0.
-Other apps were running. RSS counts resident pages; it is not total allocated
-memory. Usage varies with hardware, sensors and settings.
-[Method and raw measurements](docs/PERFORMANCE.md).
+In separate 60-second samples on this Mac, average CPU fell from 3.78% in 1.2.0
+to 0.53% in 1.3.0, about 86% lower. Process lists poll only while visible;
+background temperature sampling reads the selected sensor each tick and other
+sensors every 30 seconds.
+
+Measured on an 8 GB M1 MacBook Air running macOS 27.0.1. Other apps were running;
+these are single-machine observations, not a controlled benchmark. RSS counts
+resident pages, not total allocated memory. Usage varies with hardware, sensors,
+visible windows and settings. [Method and raw measurements](docs/PERFORMANCE.md).
 
 ## Project information
 

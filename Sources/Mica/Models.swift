@@ -54,6 +54,7 @@ enum Pane: String, CaseIterable, Identifiable {
   case battery = "Battery"
   case devices = "Devices"
   case general = "General"
+  case alerts = "Alerts"
   var id: String { rawValue }
   var meter: Meter? {
     switch self {
@@ -68,7 +69,7 @@ enum Pane: String, CaseIterable, Identifiable {
   }
   var symbol: String {
     meter?.symbol
-      ?? (self == .power ? "bolt.circle" : self == .devices ? "iphone" : "slider.horizontal.3")
+      ?? (self == .power ? "bolt.circle" : self == .devices ? "iphone" : self == .alerts ? "bell" : "slider.horizontal.3")
   }
 }
 struct Preferences: Codable, Equatable {
@@ -88,6 +89,10 @@ struct Preferences: Codable, Equatable {
   var mobileEnabled = false
   var mobileNetwork = false
   var batteryHistoryAutomatic = false
+  var alertsEnabled = false
+  var alertRules = AlertRule.defaults
+  var wakeDurationMinutes = 30
+  var wakeBatteryFloor: Double = 0
   var cpuUser = "#168CFF"
   var cpuSystem = "#FF5349"
   var transmit = "#32D74B"
@@ -148,6 +153,8 @@ struct Sensor: Codable, Identifiable {
 struct Snapshot: Codable {
   var timestamp = Date()
   var cores: [CoreLoad] = []
+  var cpuAvailable = false
+  var diskFreeBytes: Double?
   var memoryTotal: Double = 0, active: Double = 0, wired: Double = 0, compressed: Double = 0,
     inactive: Double = 0, swap: Double = 0
   var pressure: Int32 = 0
@@ -226,6 +233,12 @@ final class Monitor: ObservableObject {
   @Published var paused = false
   let batteryHistory = BatteryHistoryStore()
   let mobile = MobileBatteryMonitor()
+  let processes = ProcessMonitor()
+  let alerts = AlertController()
+  var onSample: ((Snapshot) -> Void)?
+  private let live: Bool
+  private var lastDiskSpaceRead: Double = -.infinity
+  private var cachedDiskFree: Double?
   private var deviceSubscription: AnyCancellable?
   private var deviceOptions: [Bool] = []
   private let queue = DispatchQueue(label: "sg.angad.Mica.sampling", qos: .utility)
@@ -241,6 +254,7 @@ final class Monitor: ObservableObject {
   private var subscription: AnyCancellable?
   init(settings: Settings, start: Bool = true) {
     self.settings = settings
+    self.live = start
     if start {
       mobile.onReadings = { [weak self] readings in
         guard let self, self.settings.value.batteryHistoryAutomatic else { return }
@@ -274,6 +288,8 @@ final class Monitor: ObservableObject {
   }
   func togglePause() {
     paused.toggle()
+    alerts.resetPending()
+    processes.setPaused(paused)
     if !paused {
       previous = nil
       previousTime = nil
@@ -285,18 +301,28 @@ final class Monitor: ObservableObject {
     busy = true
     let selectedSensor = settings.value.temperatureSensor
     let detailed = !sensorViewers.isEmpty
+    let needDiskSpace = settings.value.alertsEnabled
+      && settings.value.alertRules.contains { $0.metric == .diskFree && $0.enabled }
     queue.async { [weak self] in
       var raw = GMSample()
       selectedSensor.withCString { gm_sample_selected(&raw, $0, detailed ? 1 : 0) }
       let battery = MacBatteryReader.read()
       let time = ProcessInfo.processInfo.systemUptime
+      var free: Double?
+      if let self, needDiskSpace {
+        if time - self.lastDiskSpaceRead >= 30 {
+          self.lastDiskSpaceRead = time
+          self.cachedDiskFree = (try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())[.systemFreeSize] as? NSNumber)?.doubleValue
+        }
+        free = self.cachedDiskFree
+      }
       DispatchQueue.main.async {
-        self?.accept(raw, time: time, battery: battery)
+        self?.accept(raw, time: time, battery: battery, diskFreeBytes: free)
         self?.busy = false
       }
     }
   }
-  func accept(_ raw: GMSample, time: Double, battery: BatteryReading? = nil) {
+  func accept(_ raw: GMSample, time: Double, battery: BatteryReading? = nil, diskFreeBytes: Double? = nil) {
     var current = raw
     var s = Snapshot()
     let p = settings.value
@@ -304,9 +330,11 @@ final class Monitor: ObservableObject {
     if let battery, p.batteryHistoryAutomatic { batteryHistory.record(battery, automatic: true) }
     let elapsed = previousTime.map { time - $0 } ?? 0
     let validInterval = elapsed > 0 && elapsed <= max(10, p.interval * 3)
-    if var old = previous, validInterval, current.cpu_valid != 0,
-      current.core_count == old.core_count
+    s.diskFreeBytes = diskFreeBytes
+    if var old = previous, validInterval, current.cpu_valid != 0, old.cpu_valid != 0,
+      current.core_count > 0, current.core_count == old.core_count
     {
+      s.cpuAvailable = true
       withUnsafeBytes(of: &current.cores) { nowBuffer in
         withUnsafeBytes(of: &old.cores) { oldBuffer in
           let now = nowBuffer.bindMemory(to: GMCore.self)
@@ -412,6 +440,8 @@ final class Monitor: ObservableObject {
     previous = current
     previousTime = time
     snapshot = s
+    if live { alerts.consume(s, preferences: p, time: time) }
+    onSample?(s)
     if validInterval {
       history.append(
         HistoryPoint(

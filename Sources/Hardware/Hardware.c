@@ -6,6 +6,7 @@
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <mach/mach.h>
 #include <mach/processor_info.h>
+#include <mach/mach_time.h>
 #include <sys/sysctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
@@ -19,6 +20,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <limits.h>
+#include <libproc.h>
+#include <sys/resource.h>
 
 // The default IOKit port is MACH_PORT_NULL on both old Intel and current Macs.
 // Avoid a link-time dependency on the macOS 12 default-port symbol.
@@ -386,3 +389,41 @@ void gm_sample_selected(GMSample *s, const char *selection, int detailed) {
     read_temperature(s, selection, detailed); read_smc_selected(s, selection, detailed); read_power(s);
 }
 void gm_sample(GMSample *s) { gm_sample_selected(s, "Automatic", 1); }
+
+int gm_read_processes(GMProcess *output, int capacity, int *total) {
+    if (!output || capacity <= 0 || !total) return 0;
+    *total = 0;
+    int requested = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
+    if (requested <= 0) return 0;
+    int slots = requested / (int)sizeof(pid_t) + 256;
+    if (slots > 16384) slots = 16384;
+    pid_t *pids = calloc((size_t)slots, sizeof(pid_t));
+    if (!pids) return 0;
+    int bytes = proc_listpids(PROC_ALL_PIDS, 0, pids, slots * (int)sizeof(pid_t));
+    int listed = bytes > 0 ? bytes / (int)sizeof(pid_t) : 0;
+    if (listed > slots) listed = slots;
+    int count = 0;
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    for (int i = 0; i < listed; i++) {
+        if (pids[i] <= 0) continue;
+        (*total)++;
+        if (count >= capacity) continue;
+        struct rusage_info_v2 usage = {0};
+        if (proc_pid_rusage(pids[i], RUSAGE_INFO_V2, (rusage_info_t *)&usage) != 0) continue;
+        GMProcess *record = &output[count++];
+        memset(record, 0, sizeof(*record));
+        record->pid = pids[i];
+        record->started = usage.ri_proc_start_abstime;
+        // proc_pid_rusage returns Mach absolute-time ticks, not nanoseconds on
+        // Apple Silicon. Intel normally has a 1:1 timebase.
+        long double nanoseconds = ((long double)usage.ri_user_time + usage.ri_system_time)
+            * timebase.numer / timebase.denom;
+        record->cpu_nanoseconds = nanoseconds < (long double)UINT64_MAX ? (uint64_t)nanoseconds : UINT64_MAX;
+        record->memory_bytes = usage.ri_phys_footprint;
+        if (proc_name(pids[i], record->name, sizeof(record->name)) <= 0)
+            snprintf(record->name, sizeof(record->name), "Process %d", pids[i]);
+    }
+    free(pids);
+    return count;
+}
