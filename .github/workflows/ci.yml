@@ -25,6 +25,8 @@ jobs:
         run: swift --version
       - name: Unit tests
         run: ./scripts/test.sh
+      - name: Release safety tests
+        run: python3 -m unittest discover -s Tests/ReleaseTests
       - uses: actions/cache@v4
         with:
           path: .build/intel-runtime
@@ -41,6 +43,14 @@ jobs:
         run: ./scripts/build.sh --universal
       - name: Package and verify distribution
         run: ./scripts/package-release.sh
+      - name: Reject ad-hoc signatures for public distribution
+        shell: zsh {0}
+        run: |
+          if ./scripts/verify-release.sh --distribution > .build/distribution-check.log 2>&1; then
+            cat .build/distribution-check.log
+            print -u2 "A local CI signature must not pass Developer ID verification."
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Mica-universal-${{ matrix.os }}
