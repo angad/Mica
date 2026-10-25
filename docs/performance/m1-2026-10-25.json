@@ -1,0 +1,11 @@
+{
+  "measured_at_utc": "2026-10-25T21:29:40.352554+00:00",
+  "model": "MacBookAir10,1",
+  "architecture": "arm64",
+  "macos": "27.0.1",
+  "elapsed_seconds": 60.010765416,
+  "samples": 61,
+  "cpu_percent_one_core": 3.782654635821035,
+  "rss_mib_median": 38.640625,
+  "rss_mib_peak": 39.421875
+}
