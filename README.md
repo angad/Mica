@@ -87,16 +87,21 @@ in memory for the current app session.
 
 ## Screenshots
 
-Screenshots of Mica 1.2.0 running on an M1 MacBook Air.
+Mica 1.3.0 on an M1 MacBook Air. Readings and process lists vary with workload.
+Click an image to view it at full size.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/cpu.png" alt="CPU load, history and per-core display settings"><br><strong>CPU</strong></td>
-    <td width="50%"><img src="docs/screenshots/memory.png" alt="Memory pressure, RAM categories and swap usage"><br><strong>Memory</strong></td>
+    <td width="50%"><a href="docs/screenshots/cpu-processes.jpg"><img src="docs/screenshots/cpu-processes.jpg" alt="Mica 1.3 CPU view with total load, recent history and five processes ranked by CPU usage"></a><br><strong>Top processes by CPU</strong><br>CPU load, history and per-process usage.</td>
+    <td width="50%"><a href="docs/screenshots/memory-processes.jpg"><img src="docs/screenshots/memory-processes.jpg" alt="Mica 1.3 Memory view showing RAM categories, swap and five processes ranked by physical memory footprint"></a><br><strong>Top processes by memory</strong><br>RAM categories, swap and process memory footprints.</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/battery.png" alt="Mac battery health, full/design capacity and cycle count"><br><strong>Battery diagnostics</strong></td>
-    <td><img src="docs/screenshots/stay-awake.png" alt="Stay-awake controls and menu bar customization"><br><strong>Sleep controls</strong></td>
+    <td><a href="docs/screenshots/alerts.jpg"><img src="docs/screenshots/alerts.jpg" alt="Mica 1.3 Alerts settings showing an 80 percent CPU threshold, 30 second duration and five minute cooldown, with alerts disabled"></a><br><strong>Alert settings</strong><br>Threshold, duration and cooldown. Rules are disabled in this capture.</td>
+    <td><a href="docs/screenshots/stay-awake-duration.jpg"><img src="docs/screenshots/stay-awake-duration.jpg" alt="Mica 1.3 General settings with an active 30 minute stay-awake session and its expiry time"></a><br><strong>Timed session by duration</strong><br>An active 30-minute session and its expiry time.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/stay-awake-until.jpg"><img src="docs/screenshots/stay-awake-until.jpg" alt="Mica 1.3 General settings with an active stay-awake session configured to end at a selected date and time"></a><br><strong>Timed session by end time</strong><br>An active session with a selected date and time.</td>
+    <td><a href="docs/screenshots/battery.jpg"><img src="docs/screenshots/battery.jpg" alt="Mica 1.3 Battery view showing capacity health, full-charge and design capacity, cycle count and electrical readings"></a><br><strong>Battery diagnostics</strong><br>Capacity health, cycle count and electrical readings.</td>
   </tr>
 </table>
 

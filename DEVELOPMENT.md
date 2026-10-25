@@ -125,8 +125,11 @@ Homebrew quarantine is preserved. See [Homebrew distribution details](docs/HOMEB
 
 The [performance note](docs/PERFORMANCE.md) includes a reproducible manual sampler
 and raw measurements. It is a developer tool; the installed app does not run it.
-The README screenshots were captured from the real app on macOS 27.0.1 using the
-existing app-only window export. They show real readings, not simulated device data.
+The README gallery contains native window captures of Mica 1.3.0 on macOS 27.0.1.
+CPU and memory captures show live process readings. The Alerts capture shows rules
+disabled; the two timed-session captures show active duration and end-time examples.
+Both example sessions were ended after capture. The screenshots contain no simulated
+process or battery data.
 
 ## Sampling and alerts
 
