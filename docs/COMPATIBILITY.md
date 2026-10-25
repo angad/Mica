@@ -1,7 +1,7 @@
 # Compatibility
 
 The 1.2 release target is **macOS 12.3 Monterey or later, arm64 and x86_64**.
-This is the oldest deployment target supported by the macOS 27 SDK used here.
+Monterey 12.3 is the chosen release baseline for the current toolchain.
 Many older Intel Macs can run Monterey, including models supported through
 third-party OS patches, but a successful build is not proof of every model's sensors.
 

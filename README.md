@@ -4,6 +4,9 @@ A native macOS menu-bar monitor for CPU, memory, network, storage, temperature,
 power and battery health. Independent implementation, MIT licensed. No account,
 telemetry, subscription, root helper, or required third-party packages for Mac monitoring.
 
+[Download the 1.2.0 preview](https://github.com/angad/Mica/releases/tag/v1.2.0)
+or build from source below. The preview binary is ad-hoc signed, not notarized.
+
 **Release 1.2 targets macOS 12.3 Monterey and later, on Apple Silicon and Intel.**
 Liquid Glass is used on macOS 26+; older systems use native material surfaces.
 See the [compatibility matrix](docs/COMPATIBILITY.md) and [validation evidence](VALIDATION.md)

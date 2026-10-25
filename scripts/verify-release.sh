@@ -12,10 +12,10 @@ required = {'arm64', 'x86_64'}
 arches = set(subprocess.check_output(['lipo', '-archs', str(binary)], text=True).split())
 assert arches == required, f'Universal release required; found {arches}'
 minimum = info['LSMinimumSystemVersion']
-loads = subprocess.check_output(['otool', '-l', str(binary)], text=True)
+loads = subprocess.check_output(['otool', '-arch', 'all', '-l', str(binary)], text=True)
 versions = re.findall(r'^\s*minos\s+(\S+)', loads, re.M)
 assert len(versions) == 2 and all(v == minimum for v in versions), (minimum, versions)
-dependencies = subprocess.check_output(['otool', '-L', str(binary)], text=True)
+dependencies = subprocess.check_output(['otool', '-arch', 'all', '-L', str(binary)], text=True)
 assert '/opt/homebrew/' not in dependencies and '/Users/' not in dependencies
 for library in (app / 'Contents/Frameworks').glob('*.dylib'):
     contained = set(subprocess.check_output(['lipo', '-archs', str(library)], text=True).split())
