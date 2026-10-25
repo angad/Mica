@@ -39,9 +39,10 @@ jobs:
           fi
       - name: Universal app
         run: ./scripts/build.sh --universal
-      - name: Verify distribution
-        run: ./scripts/verify-release.sh
+      - name: Package and verify distribution
+        run: ./scripts/package-release.sh
       - uses: actions/upload-artifact@v4
         with:
           name: Mica-universal-${{ matrix.os }}
-          path: dist/Mica.app
+          # ZIP preserves executable bits and the app bundle structure.
+          path: dist/Mica-*

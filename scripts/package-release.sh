@@ -9,6 +9,9 @@ version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resource
 COPYFILE_DISABLE=1 /usr/bin/tar -czf "dist/Mica-$version-source.tar.gz" \
   Package.swift Sources Tests Resources/Info.plist Resources/AppIcon.icns \
   scripts README.md LICENSE CONTRIBUTING.md SECURITY.md CHANGELOG.md VALIDATION.md docs .github .gitignore
-/usr/bin/shasum -a 256 "dist/Mica-$version-universal.zip" "dist/Mica-$version-source.tar.gz" \
-  > "dist/Mica-$version-SHA256SUMS.txt"
+(
+  cd dist
+  /usr/bin/shasum -a 256 "Mica-$version-universal.zip" "Mica-$version-source.tar.gz" \
+    > "Mica-$version-SHA256SUMS.txt"
+)
 print "Release archives and checksums are in dist/."
