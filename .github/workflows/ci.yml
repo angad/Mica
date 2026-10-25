@@ -1,0 +1,40 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Unit tests
+        run: ./scripts/test.sh
+      - uses: actions/cache@v4
+        with:
+          path: .build/intel-runtime
+          key: swift-6.2-intel-runtime-9eac4a13500c-${{ matrix.os }}
+      - name: Prepare missing Intel runtime archives
+        shell: zsh {0}
+        run: |
+          swift_binary="$(xcrun --find swiftc)"
+          archive="${swift_binary:h:h}/lib/swift/macosx/libswiftCompatibility56.a"
+          if [[ "$(lipo -archs "$archive")" != *x86_64* && ! -f .build/intel-runtime/macosx/libswiftCompatibility56.a ]]; then
+            ./scripts/prepare-intel-runtime.sh
+          fi
+      - name: Universal app
+        run: ./scripts/build.sh --universal
+      - name: Verify distribution
+        run: ./scripts/verify-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mica-universal-${{ matrix.os }}
+          path: dist/Mica.app

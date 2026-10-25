@@ -1,0 +1,43 @@
+name: Hardware or reading issue
+description: Report a missing or incorrect reading on a specific Mac or paired device.
+body:
+  - type: markdown
+    attributes:
+      value: "Please omit serial numbers, raw UDIDs, pairing records and private device names. Build support and physical sensor validation are different; your hardware details help expand the compatibility matrix."
+  - type: input
+    id: version
+    attributes:
+      label: Mica version
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Model identifier and architecture
+      placeholder: MacBookAir10,1 — arm64
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: macOS version (and iOS/iPadOS version if relevant)
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Physical hardware
+        - Virtual machine
+        - Rosetta
+        - Synthetic fixture
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Expected reading, observed reading and steps to reproduce
+      description: Include whether the Mac/device is charging, on AC or on battery.
+    validations:
+      required: true
