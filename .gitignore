@@ -2,3 +2,8 @@
 dist/
 .DS_Store
 Resources/AppIcon.iconset/
+__pycache__/
+*.p12
+*.p8
+*.key
+.env

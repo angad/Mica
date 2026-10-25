@@ -55,6 +55,9 @@ Set `MICA_INTEL_RUNTIME_DIR` to use an existing compatible archive directory.
 The release script creates an
 arm64 + x86_64 bundle, includes required back-deployment libraries, and signs it
 locally. It is not Developer ID signed or notarized for public binary distribution.
+The [Developer ID and notarization workflow](docs/NOTARIZATION.md) is prepared for
+maintainers with an Apple Developer Program membership. The published preview
+remains ad-hoc signed until that workflow completes with Apple's acceptance.
 
 Copy `Mica.app` to Applications before enabling **General → Open at login**.
 Click a meter for details; right-click the group for settings, pause or quit. Hold

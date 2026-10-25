@@ -41,3 +41,7 @@ deployment targets, and exercise settings and popovers on the target machine.
 Update `VALIDATION.md` and the compatibility table with exact evidence and limits.
 Reboot/login and older physical hardware remain separate manual checks. Never
 enable the persistent lid-sleep override as part of automated tests.
+
+Public Developer ID releases use the staged [notarization workflow](docs/NOTARIZATION.md).
+Run its release-boundary tests with `python3 -m unittest discover -s Tests/ReleaseTests`.
+Local CI signatures are deliberately rejected by the distribution verifier.
