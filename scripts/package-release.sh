@@ -8,7 +8,7 @@ version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resource
 # data, the parent workspace, or private machine files.
 COPYFILE_DISABLE=1 /usr/bin/tar -czf "dist/Mica-$version-source.tar.gz" \
   Package.swift Sources Tests Resources/Info.plist Resources/AppIcon.icns \
-  scripts README.md LICENSE CONTRIBUTING.md SECURITY.md CHANGELOG.md VALIDATION.md docs .github .gitignore
+  scripts README.md DEVELOPMENT.md LICENSE CONTRIBUTING.md SECURITY.md CHANGELOG.md VALIDATION.md docs .github .gitignore
 (
   cd dist
   /usr/bin/shasum -a 256 "Mica-$version-universal.zip" "Mica-$version-source.tar.gz" \

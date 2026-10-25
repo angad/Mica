@@ -62,3 +62,19 @@ The authoritative cask is in the tap repository. Update its version and SHA-256
 after publishing the corresponding universal release. Keep the unsigned-preview
 caveat until the released artifact has actually passed notarization and Gatekeeper.
 Never add a quarantine-removal command to work around signing.
+
+## Validation — 25 October 2026
+
+- Ruby syntax and Homebrew style checks pass.
+- The published ZIP's SHA-256 matches the cask; its signature verifies and it
+  contains both arm64 and x86_64.
+- Homebrew 7.0.10 on macOS 27.0.1 successfully installed Mica 1.2.0 into a temporary
+  application directory and uninstalled that copy. The app retained its quarantine
+  attribute. The existing installed Mica and its history were preserved, and
+  test-only tap/trust state was removed afterwards.
+- The online audit passes with the single `github_prerelease_version` exception:
+  this personal tap intentionally distributes the clearly marked preview.
+- [The disposable macOS CI install/uninstall test passes](https://github.com/angad/homebrew-tap/actions/runs/40236445518).
+
+Installation verification is separate from Apple's notarization. The release is
+still ad-hoc signed, and its first launch may require explicit macOS approval.
