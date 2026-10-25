@@ -68,7 +68,7 @@ struct MicaMain {
     withExtendedLifetime(delegate) { app.run() }
   }
 }
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPopoverDelegate {
   let settings = Settings(
     defaults: CommandLine.arguments.contains("--check-clicks")
       ? UserDefaults(suiteName: "sg.angad.Mica.interactionchecks")! : .standard)
@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var window: NSWindow?
   private let popover = NSPopover()
   private var selectedMeter: Meter?
+  private var lastPane: Pane = .cpu
   private var subscriptions = Set<AnyCancellable>()
   func applicationDidFinishLaunching(_ notification: Notification) {
     let others = NSRunningApplication.runningApplications(
@@ -120,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       button.addSubview(meterBar)
     }
     popover.behavior = .transient
+    popover.delegate = self
     popover.animates = true
     monitor.$snapshot.sink { [weak self] _ in DispatchQueue.main.async { self?.updateMeter() } }
       .store(in: &subscriptions)
@@ -204,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let s = monitor.snapshot
     let dark = status.button?.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
     let image = MeterPainter.image(s, settings.value, dark: dark)
-    status.length = image.size.width + 2
+    if status.length != image.size.width + 2 { status.length = image.size.width + 2 }
     meterBar.update(image: image, regions: MeterPainter.regions(s, settings.value))
     let summary =
       "Mica. CPU \(Int(s.cpu*100)) percent. Memory \(bytes(s.memoryUsed)). Temperature \(temperatureText(s.temperature,fahrenheit:settings.value.fahrenheit)). Charger \(watts(s.inputWatts)). Mac \(watts(s.systemWatts))."
@@ -288,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     guard let button = status.button else { return }
     popover.close()
     selectedMeter = meter
+    monitor.showDetailedSensors(meter == .temperature, viewer: "popover")
     let screen = button.window?.screen ?? NSScreen.main
     var available = screen?.visibleFrame.size ?? NSSize(width: 800, height: 600)
     if let heightLimit { available.height = min(available.height, heightLimit) }
@@ -313,6 +316,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
   }
   func applicationWillTerminate(_ notification: Notification) { sleep.stop() }
+  func popoverDidClose(_ notification: Notification) {
+    guard !popover.isShown else { return }
+    popover.contentViewController = nil
+    monitor.showDetailedSensors(false, viewer: "popover")
+  }
+  func windowWillClose(_ notification: Notification) {
+    // Closed hosting views otherwise continue observing each sample and laying out.
+    window?.contentView = nil
+    window = nil
+    monitor.showDetailedSensors(false, viewer: "settings")
+  }
   @objc private func toggleStayAwake() { sleep.setStayAwake(!sleep.stayAwake) }
   @objc private func toggleLidSleep() { sleep.setLidSleepDisabled(sleep.lidSleepDisabled != true) }
   @objc private func togglePause() { monitor.togglePause() }
@@ -334,7 +348,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
           pane: CommandLine.arguments.contains("--battery-settings")
             ? .battery
             : CommandLine.arguments.contains("--devices-settings")
-              ? .devices : CommandLine.arguments.contains("--sleep-settings") ? .general : .cpu))
+              ? .devices : CommandLine.arguments.contains("--sleep-settings") ? .general : lastPane,
+          onPaneChanged: { [weak self] in self?.lastPane = $0 }))
       w.contentView = container
       w.setContentSize(NSSize(width: 720, height: 720))
       w.center()

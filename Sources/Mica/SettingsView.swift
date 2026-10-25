@@ -11,6 +11,7 @@ struct SettingsView: View {
   @ObservedObject var monitor: Monitor
   @ObservedObject var sleep: SleepController
   @ViewState var pane: Pane = .cpu
+  var onPaneChanged: ((Pane) -> Void)? = nil
   @ViewState private var loginError: String?
   @ViewState private var loginEnabled = LoginStartup.enabled
   @Environment(\.colorScheme) private var scheme
@@ -115,6 +116,12 @@ struct SettingsView: View {
           .foregroundColor(.secondary)
       }.padding(.horizontal, 26).padding(.vertical, 15)
     }.frame(width: 720, height: 720).background(Color(NSColor.windowBackgroundColor))
+      .onAppear { monitor.showDetailedSensors(pane == .temperature, viewer: "settings") }
+      .onChange(of: pane) { value in
+        onPaneChanged?(value)
+        monitor.showDetailedSensors(value == .temperature, viewer: "settings")
+      }
+      .onDisappear { monitor.showDetailedSensors(false, viewer: "settings") }
   }
   private var subtitle: String {
     switch pane {

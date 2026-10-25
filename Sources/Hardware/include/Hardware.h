@@ -18,5 +18,7 @@ typedef struct {
     int external_power, charging;
 } GMSample;
 void gm_sample(GMSample *sample);
+void gm_sample_selected(GMSample *sample, const char *selection, int detailed);
+int gm_sensor_rank(const char *name, const char *selection);
 double gm_decode_smc(const char *type, const uint8_t *bytes, uint32_t length);
 #endif

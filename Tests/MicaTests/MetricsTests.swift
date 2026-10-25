@@ -5,6 +5,17 @@ import Testing
 @testable import Mica
 
 @Suite struct MetricsTests {
+  @Test func temperatureSelectionPrioritiesMatchDisplayedReadings() {
+    #expect(gm_sensor_rank("SOC MTR Temp Sensor0", "Automatic") == 0)
+    #expect(gm_sensor_rank("CPU die (TC0D)", "Automatic") == 1)
+    #expect(gm_sensor_rank("CPU proximity", "Automatic") == 2)
+    #expect(gm_sensor_rank("GPU die", "Automatic") == -1)
+    #expect(gm_sensor_rank("pACC MTR Temp Sensor0", "CPU average") == 0)
+    #expect(gm_sensor_rank("eACC MTR Temp Sensor0", "CPU average") == 0)
+    #expect(gm_sensor_rank("GPU die", "CPU average") == -1)
+    #expect(gm_sensor_rank("Battery (TB0T)", "Battery (TB0T)") == 0)
+    #expect(gm_sensor_rank("CPU die", "Missing sensor") == -1)
+  }
   @Test func ratesAndCounterResets() {
     #expect(counterRate(2500, 500, elapsed: 2) == 1000)
     #expect(counterRate(10, 1000, elapsed: 1) == 0)

@@ -17,6 +17,8 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <limits.h>
 
 // The default IOKit port is MACH_PORT_NULL on both old Intel and current Macs.
 // Avoid a link-time dependency on the macOS 12 default-port symbol.
@@ -121,7 +123,34 @@ static void read_disk(GMSample *s) {
 }
 // Apple IOHID temperature events. Resolve optional symbols at runtime so a future OS
 // without this interface reports unavailable rather than failing to launch.
-static void read_temperature(GMSample *s) {
+static double monotonic_seconds(void) {
+    struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
+    return now.tv_sec + now.tv_nsec / 1e9;
+}
+int gm_sensor_rank(const char *name, const char *selection) {
+    if (!selection || !strcmp(selection, "Automatic") || !strcmp(selection, "SOC MTR Temp Sensor0")) {
+        if (!strcmp(name, "SOC MTR Temp Sensor0")) return 0;
+        if (strcasestr(name, "CPU die")) return 1;
+        if (strcasestr(name, "CPU")) return 2;
+        if (strcasestr(name, "SOC")) return 3;
+        return -1;
+    }
+    if (!strcmp(selection, "CPU average"))
+        return strcasestr(name, "pACC") || strcasestr(name, "eACC") || strcasestr(name, "CPU") ? 0 : -1;
+    return !strcmp(name, selection) ? 0 : -1;
+}
+static int selected_sensor(const GMSensor *sensors, int count, const char *selection) {
+    int selected = -1, best = INT_MAX;
+    for (int i = 0; i < count; i++) {
+        int rank = gm_sensor_rank(sensors[i].name, selection);
+        if (rank < 0 || !isfinite(sensors[i].celsius)) continue;
+        if (rank < best || (rank == best && selected >= 0 && strcmp(sensors[i].name, sensors[selected].name) < 0)) {
+            best = rank; selected = i;
+        }
+    }
+    return selected;
+}
+static void read_temperature(GMSample *s, const char *selection, int detailed) {
     typedef CFTypeRef (*Create)(CFAllocatorRef);
     typedef void (*SetMatching)(CFTypeRef, CFDictionaryRef);
     typedef CFArrayRef (*CopyServices)(CFTypeRef);
@@ -130,6 +159,10 @@ static void read_temperature(GMSample *s) {
     typedef double (*FloatValue)(CFTypeRef, int32_t);
     static int initialized = 0; static CFTypeRef client = NULL;
     static CopyServices services; static CopyProperty property; static CopyEvent event; static FloatValue value;
+    static CFArrayRef all = NULL;
+    static CFTypeRef handles[GM_MAX_SENSORS];
+    static GMSensor cached[GM_MAX_SENSORS]; static int count = 0;
+    static double discovery = 0, full_read = 0;
     if (!initialized) {
         initialized = 1;
         Create create = (Create)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
@@ -139,8 +172,7 @@ static void read_temperature(GMSample *s) {
         event = (CopyEvent)dlsym(RTLD_DEFAULT, "IOHIDServiceClientCopyEvent");
         value = (FloatValue)dlsym(RTLD_DEFAULT, "IOHIDEventGetFloatValue");
         if (!create || !match || !services || !property || !event || !value) return;
-        client = create(kCFAllocatorDefault);
-        if (!client) return;
+        client = create(kCFAllocatorDefault); if (!client) return;
         int page = 0xff00, usage = 5;
         CFNumberRef pageNumber = CFNumberCreate(NULL, kCFNumberIntType, &page), usageNumber = CFNumberCreate(NULL, kCFNumberIntType, &usage);
         const void *keys[] = {CFSTR("PrimaryUsagePage"), CFSTR("PrimaryUsage")}, *values[] = {pageNumber, usageNumber};
@@ -148,20 +180,41 @@ static void read_temperature(GMSample *s) {
         match(client, matching); CFRelease(matching); CFRelease(pageNumber); CFRelease(usageNumber);
     }
     if (!client) return;
-    CFArrayRef all = services(client); if (!all) return;
-    for (CFIndex i = 0; i < CFArrayGetCount(all) && s->sensor_count < GM_MAX_SENSORS; i++) {
-        CFTypeRef service = CFArrayGetValueAtIndex(all, i), reading = event(service, 15, 0, 0);
-        if (!reading) continue;
-        double celsius = value(reading, 15 << 16); CFRelease(reading);
-        if (!isfinite(celsius) || celsius <= 0 || celsius > 130) continue;
-        CFTypeRef name = property(service, CFSTR("Product"));
-        if (name && CFGetTypeID(name) == CFStringGetTypeID()) {
-            GMSensor *sensor = &s->sensors[s->sensor_count++];
-            CFStringGetCString(name, sensor->name, sizeof(sensor->name), kCFStringEncodingUTF8); sensor->celsius = celsius;
+    double now = monotonic_seconds();
+    if (!all || now - discovery >= 60) {
+        if (all) CFRelease(all);
+        all = services(client); count = 0; discovery = now; detailed = 1;
+        if (!all) return;
+        for (CFIndex i = 0; i < CFArrayGetCount(all) && count < GM_MAX_SENSORS; i++) {
+            CFTypeRef service = CFArrayGetValueAtIndex(all, i), name = property(service, CFSTR("Product"));
+            if (name && CFGetTypeID(name) == CFStringGetTypeID()) {
+                handles[count] = service;
+                CFStringGetCString(name, cached[count].name, sizeof(cached[count].name), kCFStringEncodingUTF8);
+                cached[count++].celsius = NAN;
+            }
+            if (name) CFRelease(name);
         }
-        if (name) CFRelease(name);
     }
-    CFRelease(all);
+    int full = detailed || now - full_read >= 30;
+    int selected = selected_sensor(cached, count, selection);
+    int average = selection && !strcmp(selection, "CPU average");
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < count; i++) {
+            int wanted = average ? gm_sensor_rank(cached[i].name, selection) >= 0
+                : selected >= 0 && !strcmp(cached[i].name, cached[selected].name);
+            if (!full && !wanted) continue;
+            CFTypeRef reading = event(handles[i], 15, 0, 0);
+            double celsius = reading ? value(reading, 15 << 16) : NAN;
+            if (reading) CFRelease(reading);
+            cached[i].celsius = isfinite(celsius) && celsius > 0 && celsius <= 130 ? celsius : NAN;
+        }
+        if (full) { full_read = now; break; }
+        if (selected >= 0 && !average && !isfinite(cached[selected].celsius)) {
+            full = 1; discovery = 0;
+        } else break;
+    }
+    for (int i = 0; i < count; i++)
+        if (isfinite(cached[i].celsius)) s->sensors[s->sensor_count++] = cached[i];
 }
 // Read-only SMC protocol: 80-byte request, metadata command 9 and read command 5.
 // Offsets are the driver's wire ABI, not a reused third-party implementation.
@@ -302,8 +355,34 @@ static void read_power(GMSample *s) {
     if (s->system_watts < 0 || s->system_watts > 2000) s->system_watts = NAN;
     if (s->charger_watts < 0 || s->charger_watts > 2000) s->charger_watts = NAN;
 }
-void gm_sample(GMSample *s) {
+static void read_smc_selected(GMSample *s, const char *selection, int detailed) {
+    if (s->sensor_count) return;
+    static GMSensor cached[GM_MAX_SENSORS]; static int count = 0;
+    static double last_full = -100;
+    double now = monotonic_seconds();
+    if (!count || detailed || now - last_full >= 30) {
+        read_smc_temperature(s); count = s->sensor_count;
+        memcpy(cached, s->sensors, count * sizeof(GMSensor)); last_full = now;
+        return;
+    }
+    int selected = selected_sensor(cached, count, selection);
+    int average = selection && !strcmp(selection, "CPU average");
+    for (int i = 0; i < count; i++) {
+        int wanted = average ? gm_sensor_rank(cached[i].name, selection) >= 0
+            : selected >= 0 && !strcmp(cached[i].name, cached[selected].name);
+        if (!wanted) continue;
+        const char *start = strrchr(cached[i].name, '(');
+        if (!start || strlen(start) != 6) continue;
+        char key[5] = {0}; memcpy(key, start + 1, 4);
+        double value = smc_read(key);
+        cached[i].celsius = isfinite(value) && value > 0 && value <= 130 ? value : NAN;
+    }
+    for (int i = 0; i < count; i++)
+        if (isfinite(cached[i].celsius)) s->sensors[s->sensor_count++] = cached[i];
+}
+void gm_sample_selected(GMSample *s, const char *selection, int detailed) {
     memset(s, 0, sizeof(*s));
     read_cpu(s); read_memory(s); read_network(s); read_disk(s);
-    read_temperature(s); read_smc_temperature(s); read_power(s);
+    read_temperature(s, selection, detailed); read_smc_selected(s, selection, detailed); read_power(s);
 }
+void gm_sample(GMSample *s) { gm_sample_selected(s, "Automatic", 1); }

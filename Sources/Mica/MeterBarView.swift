@@ -13,6 +13,7 @@ final class MeterBarView: NSView {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
   func update(image: NSImage, regions: [MeterRegion]) {
+    let layoutChanged = self.regions != regions || self.image?.size != image.size
     self.image = image
     self.regions = regions
     let visible = Set(regions.map(\.meter))
@@ -27,7 +28,7 @@ final class MeterBarView: NSView {
       buttons[region.meter] = button
       addSubview(button)
     }
-    needsLayout = true
+    if layoutChanged { needsLayout = true }
     needsDisplay = true
   }
 

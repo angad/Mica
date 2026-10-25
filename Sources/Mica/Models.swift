@@ -233,6 +233,10 @@ final class Monitor: ObservableObject {
   private var previous: GMSample?
   private var previousTime: Double?
   private var busy = false
+  private var sensorViewers: Set<String> = []
+  func showDetailedSensors(_ visible: Bool, viewer: String) {
+    if visible { sensorViewers.insert(viewer) } else { sensorViewers.remove(viewer) }
+  }
   private let settings: Settings
   private var subscription: AnyCancellable?
   init(settings: Settings, start: Bool = true) {
@@ -279,9 +283,11 @@ final class Monitor: ObservableObject {
   func sample() {
     guard !busy, !paused else { return }
     busy = true
+    let selectedSensor = settings.value.temperatureSensor
+    let detailed = !sensorViewers.isEmpty
     queue.async { [weak self] in
       var raw = GMSample()
-      gm_sample(&raw)
+      selectedSensor.withCString { gm_sample_selected(&raw, $0, detailed ? 1 : 0) }
       let battery = MacBatteryReader.read()
       let time = ProcessInfo.processInfo.systemUptime
       DispatchQueue.main.async {

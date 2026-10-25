@@ -1,6 +1,6 @@
 import AppKit
 
-struct MeterRegion {
+struct MeterRegion: Equatable {
   let meter: Meter
   let rect: NSRect
 }
